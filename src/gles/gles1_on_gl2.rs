@@ -40,7 +40,10 @@ use std::ffi::CStr;
 pub const CAPABILITIES: &[GLenum] = &[
     gl21::ALPHA_TEST,
     gl21::BLEND,
-    gl21::COLOR_LOGIC_OP,
+    // ANGLE asserts if we try to check this capability.
+    // https://github.com/google/angle/blob/main/doc/ES1Status.md suggests that
+    // logic op support is incomplete, so that might be why.
+    //gl21::COLOR_LOGIC_OP,
     gl21::CLIP_PLANE0,
     gl21::LIGHT0,
     gl21::LIGHT1,
