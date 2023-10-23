@@ -441,7 +441,10 @@ fn substitute_classes(
         || name.starts_with("AltAds")
         || name.starts_with("Mobclix")
         || name == "UserRegViewController"
-        || name == "GMGChocolateBarViewController")
+        || name == "GMGChocolateBarViewController"
+        || name == "FacebookManager"
+        || name == "NewsManager"
+        || name == "ListManager")
     {
         return None;
     }

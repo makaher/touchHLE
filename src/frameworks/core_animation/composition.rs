@@ -11,6 +11,7 @@
 
 use super::ca_eagl_layer::find_fullscreen_eagl_layer;
 use super::ca_layer::CALayerHostObject;
+use crate::frameworks::core_animation::ca_layer::layer_get_frame;
 use crate::frameworks::core_graphics::{
     cg_bitmap_context, cg_image, CGFloat, CGPoint, CGRect, CGSize,
 };
@@ -299,15 +300,15 @@ unsafe fn composite_layer_recursive(
 
     let opacity = opacity * host_obj.opacity;
     let bounds = host_obj.bounds;
+
     let absolute_frame = {
-        let position = host_obj.position;
-        let anchor_point = host_obj.anchor_point;
+        let frame = layer_get_frame(host_obj);
         CGRect {
             origin: CGPoint {
-                x: origin.x + position.x - bounds.size.width * anchor_point.x,
-                y: origin.y + position.y - bounds.size.height * anchor_point.y,
+                x: origin.x + frame.origin.x,
+                y: origin.y + frame.origin.y,
             },
-            size: bounds.size,
+            size: frame.size,
         }
     };
     let absolute_frame_clipped = clip_rects(clip_to, absolute_frame);
@@ -404,10 +405,11 @@ unsafe fn composite_layer_recursive(
             gles.Enable(gles11::BLEND);
             gles.BlendFunc(gles11::ONE, gles11::ONE_MINUS_SRC_ALPHA);
         }
-
+        gles.PushMatrix();
         let (x, y, w, h) = gl_rect_from_cg_rect(absolute_frame_clipped, scale_hack, fb_height);
         gles.Scissor(x, y, w, h);
         gles.Viewport(x, y, w, h);
+        gles.LoadMatrixf(host_obj.transform.as_matrix().as_ptr());
 
         gles.BindBuffer(gles11::ARRAY_BUFFER, 0);
         let vertices: [f32; 12] = [
@@ -427,6 +429,7 @@ unsafe fn composite_layer_recursive(
         gles.TexCoordPointer(2, gles11::FLOAT, 0, tex_coords.as_ptr() as *const GLvoid);
         gles.Enable(gles11::TEXTURE_2D);
         gles.DrawArrays(gles11::TRIANGLES, 0, 6);
+        gles.PopMatrix();
     }
 
     // avoid holding mutable borrow while recursing

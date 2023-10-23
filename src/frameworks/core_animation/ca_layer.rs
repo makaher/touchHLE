@@ -5,7 +5,12 @@
  */
 //! `CALayer`.
 
+use crate::frameworks::core_animation::ca_transform_3d::{
+    CATransform3D, CATransform3DGetAffineTransform, CATransform3DInvert,
+    CATransform3DMakeAffineTransform,
+};
 use crate::frameworks::core_foundation::{CFRelease, CFRetain};
+use crate::frameworks::core_graphics::cg_affine_transform::CGAffineTransform;
 use crate::frameworks::core_graphics::cg_bitmap_context::{
     CGBitmapContextCreate, CGBitmapContextGetHeight, CGBitmapContextGetWidth,
 };
@@ -31,6 +36,7 @@ pub(super) struct CALayerHostObject {
     pub(super) bounds: CGRect,
     pub(super) position: CGPoint,
     pub(super) anchor_point: CGPoint,
+    pub(super) transform: CATransform3D,
     pub(super) hidden: bool,
     pub(super) opaque: bool,
     pub(super) opacity: f32,
@@ -68,6 +74,7 @@ pub const CLASSES: ClassExports = objc_classes! {
         },
         position: CGPoint { x: 0.0, y: 0.0 },
         anchor_point: CGPoint { x: 0.5, y: 0.5 },
+        transform: CATransform3D::default(),
         hidden: false,
         opaque: false,
         opacity: 1.0,
@@ -180,23 +187,31 @@ pub const CLASSES: ClassExports = objc_classes! {
 - (())setAnchorPoint:(CGPoint)anchor_point {
     env.objc.borrow_mut::<CALayerHostObject>(this).anchor_point = anchor_point;
 }
+- (CATransform3D)transform {
+    env.objc.borrow::<CALayerHostObject>(this).transform
+}
+- (())setTransform:(CATransform3D)transform {
+    env.objc.borrow_mut::<CALayerHostObject>(this).transform = transform;
+}
+
+- (CGAffineTransform)affineTransform {
+    let xform = msg![env; this transform];
+    CATransform3DGetAffineTransform(env, xform)
+}
+- (())setAffineTransform:(CGAffineTransform)transform {
+    let xform = CATransform3DMakeAffineTransform(env, transform);
+    msg![env; this setTransform: xform]
+}
 
 - (CGRect)frame {
-    let &CALayerHostObject {
-        bounds,
-        position,
-        anchor_point,
-        ..
-    } = env.objc.borrow(this);
-    CGRect {
-        origin: CGPoint {
-            x: position.x - bounds.size.width * anchor_point.x,
-            y: position.y - bounds.size.height * anchor_point.y,
-        },
-        size: bounds.size,
-    }
+    layer_get_frame(env.objc.borrow(this))
 }
 - (())setFrame:(CGRect)frame {
+    let CALayerHostObject {
+        transform, ..
+    } = env.objc.borrow(this);
+    let xf = CATransform3DInvert(env, *transform).applyToRect(frame);
+
     let CALayerHostObject {
         bounds,
         position,
@@ -207,9 +222,10 @@ pub const CLASSES: ClassExports = objc_classes! {
         x: frame.origin.x + frame.size.width * anchor_point.x,
         y: frame.origin.y + frame.size.height * anchor_point.y,
     };
+
     *bounds = CGRect {
         origin: CGPoint { x: 0.0, y: 0.0 },
-        size: frame.size,
+        size: xf.size,
     };
 }
 
@@ -471,3 +487,21 @@ pub const CLASSES: ClassExports = objc_classes! {
 @end
 
 };
+
+pub(super) fn layer_get_frame(this: &CALayerHostObject) -> CGRect {
+    let &CALayerHostObject {
+        bounds,
+        position,
+        anchor_point,
+        transform,
+        ..
+    } = this;
+    let bounds_xf = transform.applyToRect(bounds);
+    CGRect {
+        origin: CGPoint {
+            x: position.x - bounds_xf.size.width * anchor_point.x,
+            y: position.y - bounds_xf.size.height * anchor_point.y,
+        },
+        size: bounds_xf.size,
+    }
+}

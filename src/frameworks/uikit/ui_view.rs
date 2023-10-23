@@ -184,6 +184,15 @@ pub const CLASSES: ClassExports = objc_classes! {
     env.objc.borrow_mut::<UIViewHostObject>(this).multiple_touch_enabled = enabled;
 }
 
+- (CGAffineTransform)transform {
+    let layer = env.objc.borrow::<UIViewHostObject>(this).layer;
+    msg![env; layer affineTransform]
+}
+- (())setTransform:(CGAffineTransform)transform {
+    let layer = env.objc.borrow::<UIViewHostObject>(this).layer;
+    msg![env; layer setAffineTransform: transform]
+}
+
 - (())layoutSubviews {
     // On iOS 5.1 and earlier, the default implementation of this method does
     // nothing.

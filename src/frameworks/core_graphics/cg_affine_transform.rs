@@ -83,6 +83,12 @@ pub const CGAffineTransformIdentity: CGAffineTransform = CGAffineTransform {
     // 0.0, 0.0, 1.0,
 };
 
+impl Default for CGAffineTransform {
+    fn default() -> Self {
+        CGAffineTransformIdentity
+    }
+}
+
 pub const CONSTANTS: ConstantExports = &[(
     "_CGAffineTransformIdentity",
     HostConstant::Custom(|mem| {
