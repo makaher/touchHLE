@@ -18,6 +18,7 @@ use crate::objc::{
 };
 use crate::Environment;
 use std::collections::HashMap;
+use crate::frameworks::foundation::ns_string::get_static_str;
 
 /// Alias for the return type of the `hash` method of the `NSObject` protocol.
 type Hash = NSUInteger;
@@ -204,6 +205,11 @@ pub const CLASSES: ClassExports = objc_classes! {
     retain(env, this)
 }
 
+- (id)mutableCopy{
+    let ko = dict_to_keys_and_objects(env, this);
+    dict_from_keys_and_objects(env, &ko)
+}
+
 - (bool)writeToFile:(id)path
          atomically:(bool)atomic {
     let data = msg_class![env;
@@ -224,6 +230,11 @@ pub const CLASSES: ClassExports = objc_classes! {
     }
     let ns_keys = from_vec(env, keys);
     autorelease(env, ns_keys)
+}
+
+- (id)fileSize {
+    let key = get_static_str(env, "NSFileSize");
+    msg![env; this objectForKey:key]
 }
 
 // TODO

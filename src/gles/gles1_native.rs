@@ -277,6 +277,14 @@ impl GLES for GLES1Native {
     ) {
         gles11::VertexPointer(size, type_, stride, pointer)
     }
+    unsafe fn PointSizePointerOES(
+        &mut self,
+        type_: GLenum,
+        stride: GLsizei,
+        pointer: *const GLvoid,
+    ) {
+        gles11::PointSizePointerOES(type_, stride, pointer);
+    }
 
     // Drawing
     unsafe fn DrawArrays(&mut self, mode: GLenum, first: GLint, count: GLsizei) {

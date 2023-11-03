@@ -8,6 +8,7 @@
 use crate::environment::Environment;
 use std::time;
 use std::time::{Duration, SystemTime};
+use chrono::{DateTime, TimeZone, Utc};
 
 use super::NSTimeInterval;
 use crate::objc::{autorelease, id, msg, objc_classes, ClassExports, HostObject, NSZonePtr};
@@ -36,6 +37,14 @@ pub const CLASSES: ClassExports = objc_classes! {
     log_dbg!("[(NSDate*){:?} date]: New date {:?}", this, new);
 
     autorelease(env, new)
+}
+
++ (NSTimeInterval)timeIntervalSinceReferenceDate {
+    let reference = Utc.with_ymd_and_hms(2001, 1, 1, 0, 0, 0).unwrap();
+    let diff = Utc::now() - reference;
+    let secs = diff.num_seconds();
+    let nanos = (diff - chrono::Duration::seconds(secs)).num_nanoseconds().unwrap();
+    secs as f64 + nanos as f64 / 1_000_000_000.0
 }
 
 - (id)init {

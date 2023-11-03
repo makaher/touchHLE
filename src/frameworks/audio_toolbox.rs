@@ -21,6 +21,7 @@ macro_rules! return_if_null {
     };
 }
 
+pub mod audio_component;
 pub mod audio_file;
 pub mod audio_queue;
 pub mod audio_services;

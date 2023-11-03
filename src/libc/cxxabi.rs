@@ -34,7 +34,12 @@ fn __cxa_finalize(_env: &mut Environment, d: MutVoidPtr) {
     log!("TODO: __cxa_finalize({:?}) (unimplemented)", d);
 }
 
+fn __floatundisf(_env: &mut Environment, i: u32) -> f32 {
+    i as f32
+}
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(__cxa_atexit(_, _, _)),
     export_c_func!(__cxa_finalize(_)),
+    export_c_func!(__floatundisf(_)),
 ];

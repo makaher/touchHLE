@@ -23,7 +23,7 @@ use crate::frameworks::uikit::ui_font::{
 };
 use crate::fs::GuestPath;
 use crate::mach_o::MachO;
-use crate::mem::{guest_size_of, ConstPtr, ConstVoidPtr, Mem, MutPtr, Ptr, SafeRead};
+use crate::mem::{guest_size_of, ConstPtr, ConstVoidPtr, Mem, MutPtr, Ptr, SafeRead, GuestUSize};
 use crate::objc::{
     autorelease, id, msg, msg_class, nil, objc_classes, retain, Class, ClassExports, HostObject,
     NSZonePtr, ObjC,
@@ -294,6 +294,13 @@ pub const CLASSES: ClassExports = objc_classes! {
     let res = with_format(env, format, args.start());
     let res = from_rust_string(env, res);
     autorelease(env, res)
+}
+
++ (id)stringWithCharacters:(ConstPtr<u16>)chars
+                    length:(NSUInteger)len {
+    let new: id = msg![env; this alloc];
+    let new: id = msg![env; new initWithCharacters:chars length:len];
+    autorelease(env, new)
 }
 
 +(id)pathWithComponents:(id)components {
@@ -747,6 +754,17 @@ pub const CLASSES: ClassExports = objc_classes! {
     autorelease(env, new_string)
 }
 
+- (id)stringByExpandingTildeInPath {
+    let path = to_rust_string(env, this);
+    if path.starts_with("~") {
+        let new_r = format!("{}{}", env.fs.home_directory().as_str(), &path[1..]);
+        let new_o = from_rust_string(env, new_r);
+        autorelease(env, new_o)
+    } else {
+        this
+    }
+}
+
 // These come from a category in UIKit (UIStringDrawing).
 // TODO: Implement categories so we can completely move the code to UIFont.
 // TODO: More `sizeWithFont:` variants
@@ -886,6 +904,13 @@ pub const CLASSES: ClassExports = objc_classes! {
     msg![env; this UTF8String]
 }
 
+- (())getCharacters:(MutPtr<u16>)target {
+    let me = to_rust_string(env, this);
+    for (i, c) in me.encode_utf16().enumerate() {
+        env.mem.write(target + i as GuestUSize, c);
+    }
+}
+
 @end
 
 // Our private subclass that is the single implementation of NSString for the
@@ -958,6 +983,12 @@ pub const CLASSES: ClassExports = objc_classes! {
     let bytes: ConstVoidPtr = msg![env; data bytes];
     let len: NSUInteger = msg![env; data length];
     msg![env; this initWithBytes: (bytes.cast::<u8>()) length: len encoding: encoding]
+}
+
+- (id)initWithCharacters:(ConstPtr<u16>)chars
+                  length:(NSUInteger)len {
+    let chars = chars.cast::<u8>();
+    msg![env; this initWithBytes:chars length:(len * 2) encoding:NSUTF16LittleEndianStringEncoding]
 }
 
 - (id)initWithContentsOfFile:(id)path // NSString*

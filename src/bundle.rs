@@ -11,6 +11,7 @@
 //!   * [Anatomy of an iOS Application Bundle](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html)
 //! * [Bundle Resources](https://developer.apple.com/documentation/bundleresources?language=objc)
 
+use std::borrow::Cow;
 use crate::fs::{BundleData, Fs, GuestPath, GuestPathBuf};
 use crate::image::Image;
 use plist::dictionary::Dictionary;
@@ -78,8 +79,11 @@ impl Bundle {
         self.plist["CFBundleVersion"].as_string().unwrap()
     }
 
-    pub fn bundle_localizations(&self) -> &[Value] {
-        self.plist["CFBundleLocalizations"].as_array().unwrap()
+    pub fn bundle_localizations(&self) -> Cow<[Value]> {
+        match self.plist.get("CFBundleLocalizations") {
+            Some(pl) => Cow::Borrowed(pl.as_array().unwrap()),
+            None => Cow::Owned(vec![Value::String("en".to_owned())])
+        }
     }
 
     /// Canonical name for the bundle according to Info.plist

@@ -993,6 +993,15 @@ impl GLES for GLES1OnGL2 {
         }
     }
 
+    unsafe fn PointSizePointerOES(
+        &mut self,
+        _type: GLenum,
+        _stride: GLsizei,
+        _pointer: *const GLvoid,
+    ) {
+        dbg!("PointSizePointerOES is not supported on GL1on2, proceeding anyway");
+    }
+
     // Drawing
     unsafe fn DrawArrays(&mut self, mode: GLenum, first: GLint, count: GLsizei) {
         assert!([

@@ -87,7 +87,41 @@ fn host_statistics(
     KERN_SUCCESS
 }
 
+#[repr(C, packed)]
+struct utsname {
+    sysname: [u8; 256],
+    nodename: [u8; 256],
+    release: [u8; 256],
+    version: [u8; 256],
+    machine: [u8; 256],
+}
+
+unsafe impl SafeRead for utsname {}
+
+fn uname(env: &mut Environment, ptr: MutPtr<utsname>) -> i32 {
+    let version = b"9.4.0";
+    let nodename = b"iPhone";
+    let release = b"9.4.0";
+    let sysname = b"Darwin";
+    let machine = b"iPhone1,1";
+    let mut res = utsname {
+        sysname: [0; 256],
+        nodename: [0; 256],
+        release: [0; 256],
+        version: [0; 256],
+        machine: [0; 256],
+    };
+    res.version[..version.len()].copy_from_slice(version);
+    res.nodename[..nodename.len()].copy_from_slice(nodename);
+    res.release[..release.len()].copy_from_slice(release);
+    res.sysname[..sysname.len()].copy_from_slice(sysname);
+    res.machine[..machine.len()].copy_from_slice(machine);
+    env.mem.write(ptr, res);
+    0
+}
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(mach_host_self()),
     export_c_func!(host_statistics(_, _, _, _)),
+    export_c_func!(uname(_))
 ];

@@ -8,8 +8,8 @@
 use crate::abi::GuestFunction;
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::libc::errno::{EDEADLK, EINVAL};
-use crate::mem::{ConstPtr, MutPtr, MutVoidPtr, SafeRead};
-use crate::{Environment, ThreadId};
+use crate::mem::{ConstPtr, ConstVoidPtr, GuestUSize, MutPtr, MutVoidPtr, SafeRead};
+use crate::{Environment, mem, ThreadId};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -31,14 +31,16 @@ pub struct pthread_attr_t {
     /// Magic number (must be [MAGIC_ATTR])
     magic: u32,
     detachstate: i32,
-    _unused: [u32; 8],
+    stack_size: GuestUSize,
+    _unused: [u32; 7],
 }
 unsafe impl SafeRead for pthread_attr_t {}
 
 const DEFAULT_ATTR: pthread_attr_t = pthread_attr_t {
     magic: MAGIC_ATTR,
     detachstate: PTHREAD_CREATE_JOINABLE,
-    _unused: [0; 8],
+    stack_size: mem::Mem::SECONDARY_THREAD_STACK_SIZE,
+    _unused: [0; 7],
 };
 
 /// Apple's implementation is a 4-byte magic number followed by a massive
@@ -84,6 +86,31 @@ fn pthread_attr_setdetachstate(
     env.mem.write(attr, attr_copy);
     0 // success
 }
+fn pthread_attr_setstacksize(
+    env: &mut Environment,
+    attr: MutPtr<pthread_attr_t>,
+    stack_size: GuestUSize,
+) -> i32 {
+    check_magic!(env, attr, MAGIC_ATTR);
+    let mut attr_copy = env.mem.read(attr);
+    attr_copy.stack_size = stack_size;
+    env.mem.write(attr, attr_copy);
+    0 // success
+}
+fn pthread_attr_setschedpolicy(
+    _env: &mut Environment,
+    _attr: MutPtr<pthread_attr_t>,
+    _policy: i32,
+) -> i32 {
+    0 // success
+}
+fn pthread_attr_setschedparam(
+    _env: &mut Environment,
+    _attr: MutPtr<pthread_attr_t>,
+    _param: ConstVoidPtr,
+) -> i32 {
+    0 // success
+}
 fn pthread_attr_destroy(env: &mut Environment, attr: MutPtr<pthread_attr_t>) -> i32 {
     check_magic!(env, attr, MAGIC_ATTR);
     env.mem.write(
@@ -91,6 +118,7 @@ fn pthread_attr_destroy(env: &mut Environment, attr: MutPtr<pthread_attr_t>) -> 
         pthread_attr_t {
             magic: 0,
             detachstate: 0,
+            stack_size: 0,
             _unused: Default::default(),
         },
     );
@@ -123,7 +151,7 @@ pub fn pthread_create_inner(
         DEFAULT_ATTR
     };
 
-    let thread_id = env.new_thread(start_routine, user_data);
+    let thread_id = env.new_thread(start_routine, user_data, attr.stack_size);
 
     let opaque = env.mem.alloc_and_write(OpaqueThread {
         magic: MAGIC_THREAD,
@@ -248,6 +276,9 @@ fn pthread_mach_thread_np(env: &mut Environment, thread: pthread_t) -> mach_port
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(pthread_attr_init(_)),
     export_c_func!(pthread_attr_setdetachstate(_, _)),
+    export_c_func!(pthread_attr_setstacksize(_, _)),
+    export_c_func!(pthread_attr_setschedpolicy(_, _)),
+    export_c_func!(pthread_attr_setschedparam(_, _)),
     export_c_func!(pthread_attr_destroy(_)),
     export_c_func!(pthread_create(_, _, _, _)),
     export_c_func!(pthread_self()),

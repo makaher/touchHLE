@@ -206,6 +206,17 @@ pub const CLASSES: ClassExports = objc_classes! {
     autorelease(env, localizations)
 }
 
+- (id)preferredLocalizations {
+    let bundle_locs: id = msg![env; this localizations];
+    let class = msg![env; this class];
+    msg![env; class preferredLocalizationsFromArray:bundle_locs]
+}
+
+- (id)objectForInfoDictionaryKey:(id)key {
+    let info = msg![env; this infoDictionary];
+    msg![env; info objectForKey: key]
+}
+
 // TODO: constructors, more accessors
 
 @end

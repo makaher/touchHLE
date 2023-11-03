@@ -492,6 +492,10 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 @end
 
+@implementation UITextView : NSObject
+@end
+@implementation UISwitch : NSObject
+@end
 };
 
 fn adopt_subview(env: &mut Environment, this: id, view: id) {

@@ -5,8 +5,10 @@
  */
 //! `NSFileManager` etc.
 
+use std::io::{Seek, SeekFrom};
 use super::{ns_array, ns_string, NSUInteger};
-use crate::dyld::{export_c_func, FunctionExports};
+use crate::dyld::{ConstantExports, export_c_func, FunctionExports, HostConstant};
+use crate::frameworks::foundation::ns_string::{from_rust_string, get_static_str, to_rust_string};
 use crate::fs::{GuestPath, GuestPathBuf};
 use crate::mem::MutPtr;
 use crate::objc::{
@@ -202,6 +204,44 @@ pub const CLASSES: ClassExports = objc_classes! {
     true
 }
 
+- (bool)createDirectoryAtPath:(id)path
+                   attributes:(id)attributes {
+    msg![env; this createDirectoryAtPath:path withIntermediateDirectories:false attributes:attributes error:(MutPtr::<id>::null())]
+}
+
+- (bool)createDirectoryAtPath:(id)path
+  withIntermediateDirectories:(bool)make_parents
+                   attributes:(id)attrs
+                        error:(MutPtr<id>)error {
+    assert!(attrs == nil);
+    let path = to_rust_string(env, path);
+    env.fs.create_dir(path.as_ref());
+    if !error.is_null() {
+        env.mem.write(error, nil);
+    }
+    true
+}
+
+- (id)fileAttributesAtPath:(id)path
+              traverseLink:(bool)_traverse {
+    //TODO: symlinks
+    log!("fileAttributesAtPath called, this is mostly unimplemented");
+    let path = to_rust_string(env, path);
+    let path = GuestPath::new(&path);
+    if env.fs.exists(path) {
+        let dict = msg_class![env; NSMutableDictionary dictionary];
+        if env.fs.is_file(path) {
+            let len = env.fs.open(path).unwrap().seek(SeekFrom::End(0)).unwrap();
+            let val: id = msg_class![env; NSNumber numberWithUnsignedLongLong:len];
+            let key = get_static_str(env, "NSFileSize");
+            () = msg![env; dict setObject:val forKey:key];
+        }
+        dict
+    } else {
+        nil
+    }
+}
+
 @end
 
 @implementation NSDirectoryEnumerator: NSEnumerator
@@ -214,3 +254,11 @@ pub const CLASSES: ClassExports = objc_classes! {
 @end
 
 };
+
+// All constants are NSFileAttributeKey
+pub const CONSTANTS: ConstantExports = &[
+    (
+        "_NSFileSize",
+        HostConstant::NSString("NSFileSize"),
+    ),
+];

@@ -21,6 +21,10 @@ const kAudioSessionBadPropertySizeError: OSStatus = fourcc(b"!siz") as _;
 type AudioSessionPropertyID = u32;
 const kAudioSessionProperty_OtherAudioIsPlaying: AudioSessionPropertyID = fourcc(b"othr");
 const kAudioSessionProperty_AudioCategory: AudioSessionPropertyID = fourcc(b"acat");
+const kAudioSessionProperty_AudioRouteChange: AudioSessionPropertyID = fourcc(b"roch");
+const kAudioSessionProperty_AudioInputAvailable: AudioSessionPropertyID = fourcc(b"aiav");
+const kAudioSessionProperty_PreferredHardwareIOBufferDuration: AudioSessionPropertyID = fourcc(b"iobd");
+const kAudioSessionProperty_PreferredHardwareSampleRate: AudioSessionPropertyID = fourcc(b"hwsr");
 
 const kAudioSessionCategory_SoloAmbientSound: u32 = fourcc(b"solo");
 
@@ -75,6 +79,8 @@ fn AudioSessionSetProperty(
 ) -> OSStatus {
     let required_size: GuestUSize = match in_ID {
         kAudioSessionProperty_AudioCategory => guest_size_of::<u32>(),
+        kAudioSessionProperty_PreferredHardwareIOBufferDuration => guest_size_of::<f32>(),
+        kAudioSessionProperty_PreferredHardwareSampleRate => guest_size_of::<f64>(),
         _ => unimplemented!("Unimplemented property ID: {}", debug_fourcc(in_ID)),
     };
     if in_data_size != required_size {
@@ -87,12 +93,28 @@ fn AudioSessionSetProperty(
     0 // success
 }
 
+fn AudioSessionAddPropertyListener(
+    _env: &mut Environment,
+    in_id: AudioSessionPropertyID,
+    _in_proc: GuestFunction,
+    _in_client_data: ConstVoidPtr
+) -> OSStatus {
+    match in_id {
+        kAudioSessionProperty_AudioRouteChange | kAudioSessionProperty_AudioInputAvailable => {
+            // do nothing, routing never changes
+        },
+        _ => unimplemented!()
+    }
+    0
+}
+
 fn AudioSessionSetActive(_env: &mut Environment, _active: bool) -> OSStatus {
     0 // success
 }
 
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(AudioSessionInitialize(_, _, _, _)),
+    export_c_func!(AudioSessionAddPropertyListener(_, _, _)),
     export_c_func!(AudioSessionGetProperty(_, _, _)),
     export_c_func!(AudioSessionSetProperty(_, _, _)),
     export_c_func!(AudioSessionSetActive(_)),

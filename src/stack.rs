@@ -68,6 +68,9 @@ pub fn prep_stack_for_start(
     }
     string_ptrs.push(0); // terminator
 
+    while reversed_data.len() % 4 != 0 {
+        reversed_data.push(0);
+    }
     for ptr in string_ptrs.iter().rev() {
         reversed_data.extend_from_slice(ptr.to_be_bytes().as_slice());
     }

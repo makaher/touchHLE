@@ -377,7 +377,7 @@ unsafe fn translate_pointer_or_offset(
 ) -> *const GLvoid {
     let mut buffer_binding = 0;
     gles.GetIntegerv(which_binding, &mut buffer_binding);
-    if buffer_binding != 0 {
+    if buffer_binding != 0 || pointer_or_offset.to_bits() < 0x4096 {
         let offset = pointer_or_offset.to_bits();
         offset as usize as *const _
     } else if pointer_or_offset.is_null() {
@@ -430,6 +430,23 @@ fn glVertexPointer(
         let pointer = translate_pointer_or_offset(gles, mem, pointer, gles11::ARRAY_BUFFER_BINDING);
         gles.VertexPointer(size, type_, stride, pointer)
     })
+}
+
+fn glPointSizePointerOES(
+    env: &mut Environment,
+    type_: GLenum,
+    stride: GLsizei,
+    pointer: ConstVoidPtr,
+) {
+    with_ctx_and_mem(env, |gles, mem| unsafe {
+        let pointer = translate_pointer_or_offset(
+            gles,
+            mem,
+            pointer,
+            gles11::POINT_SIZE_ARRAY_BUFFER_BINDING_OES,
+        );
+        gles.PointSizePointerOES(type_, stride, pointer);
+    });
 }
 
 // Drawing
@@ -533,6 +550,7 @@ fn glPopMatrix(env: &mut Environment) {
         unsafe { gles.PopMatrix() };
     });
 }
+
 fn glOrthof(
     env: &mut Environment,
     left: GLfloat,
@@ -1043,6 +1061,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(glNormalPointer(_, _, _)),
     export_c_func!(glTexCoordPointer(_, _, _, _)),
     export_c_func!(glVertexPointer(_, _, _, _)),
+    export_c_func!(glPointSizePointerOES(_, _, _)),
     // Drawing
     export_c_func!(glDrawArrays(_, _, _)),
     export_c_func!(glDrawElements(_, _, _, _)),

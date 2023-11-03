@@ -31,7 +31,13 @@ use std::sync::atomic::Ordering;
 /// by the method implementation. We are relying on CallFromGuest not
 /// overwriting it.
 #[allow(non_snake_case)]
-fn objc_msgSend_inner(env: &mut Environment, receiver: id, selector: SEL, super2: Option<Class>) {
+fn objc_msgSend_inner(
+    env: &mut Environment,
+    receiver: id,
+    selector: SEL,
+    super2: Option<Class>,
+    tail: bool,
+) {
     let message_type_info = env.objc.message_type_info.take();
 
     if receiver == nil {
@@ -130,7 +136,13 @@ Type mismatch when sending message {} to {:?}!
                     }
                     // We can't create a new stack frame, because that would
                     // interfere with pass-through of stack arguments.
-                    IMP::Guest(guest_imp) => guest_imp.call_without_pushing_stack_frame(env),
+                    IMP::Guest(guest_imp) => {
+                        if tail {
+                            env.cpu.branch(guest_imp);
+                        } else {
+                            guest_imp.call_without_pushing_stack_frame(env)
+                        }
+                    }
                 }
                 return;
             } else {
@@ -174,7 +186,11 @@ Type mismatch when sending message {} to {:?}!
 /// Standard variant of `objc_msgSend`. See [objc_msgSend_inner].
 #[allow(non_snake_case)]
 pub(super) fn objc_msgSend(env: &mut Environment, receiver: id, selector: SEL) {
-    objc_msgSend_inner(env, receiver, selector, /* super2: */ None)
+    objc_msgSend_inner(env, receiver, selector, /* super2: */ None, true)
+}
+
+pub(super) fn objc_msg_send_from_host(env: &mut Environment, receiver: id, selector: SEL) {
+    objc_msgSend_inner(env, receiver, selector, /* super2: */ None, false)
 }
 
 /// Variant of `objc_msgSend` for methods that return a struct via a pointer.
@@ -192,7 +208,16 @@ pub(super) fn objc_msgSend_stret(
     receiver: id,
     selector: SEL,
 ) {
-    objc_msgSend_inner(env, receiver, selector, /* super2: */ None)
+    objc_msgSend_inner(env, receiver, selector, /* super2: */ None, true)
+}
+
+pub(super) fn objc_msg_send_stret_from_host(
+    env: &mut Environment,
+    _stret: MutVoidPtr,
+    receiver: id,
+    selector: SEL,
+) {
+    objc_msgSend_inner(env, receiver, selector, /* super2: */ None, false)
 }
 
 #[repr(C, packed)]
@@ -226,7 +251,32 @@ pub(super) fn objc_msgSendSuper2(
     // Rewrite first argument to match the normal ABI.
     crate::abi::write_next_arg(&mut 0, env.cpu.regs_mut(), &mut env.mem, receiver);
 
-    objc_msgSend_inner(env, receiver, selector, /* super2: */ Some(class))
+    objc_msgSend_inner(
+        env,
+        receiver,
+        selector,
+        /* super2: */ Some(class),
+        true,
+    )
+}
+
+pub(super) fn objc_msg_send_super2_from_host(
+    env: &mut Environment,
+    super_ptr: ConstPtr<objc_super>,
+    selector: SEL,
+) {
+    let objc_super { receiver, class } = env.mem.read(super_ptr);
+
+    // Rewrite first argument to match the normal ABI.
+    crate::abi::write_next_arg(&mut 0, env.cpu.regs_mut(), &mut env.mem, receiver);
+
+    objc_msgSend_inner(
+        env,
+        receiver,
+        selector,
+        /* super2: */ Some(class),
+        false,
+    )
 }
 
 /// Trait that assists with type-checking of [msg_send]'s arguments.
@@ -263,9 +313,10 @@ where
     // Provide type info for dynamic type checking.
     env.objc.message_type_info = Some(<(R, P) as MsgSendSignature>::type_info());
     if R::SIZE_IN_MEM.is_some() {
-        (objc_msgSend_stret as fn(&mut Environment, MutVoidPtr, id, SEL)).call_from_host(env, args)
+        (objc_msg_send_stret_from_host as fn(&mut Environment, MutVoidPtr, id, SEL))
+            .call_from_host(env, args)
     } else {
-        (objc_msgSend as fn(&mut Environment, id, SEL)).call_from_host(env, args)
+        (objc_msg_send_from_host as fn(&mut Environment, id, SEL)).call_from_host(env, args)
     }
 }
 
@@ -289,7 +340,7 @@ where
     if R::SIZE_IN_MEM.is_some() {
         todo!() // no stret yet
     } else {
-        (objc_msgSendSuper2 as fn(&mut Environment, ConstPtr<objc_super>, SEL))
+        (objc_msg_send_super2_from_host as fn(&mut Environment, ConstPtr<objc_super>, SEL))
             .call_from_host(env, args)
     }
 }

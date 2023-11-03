@@ -524,7 +524,7 @@ impl Dyld {
             return Some(f);
         }
 
-        for dylib in &bins[1..] {
+        for dylib in &bins[..] {
             if let Some(&addr) = dylib.exported_symbols.get(symbol) {
                 let original_instructions = match info.entry_size {
                     12 => Self::SYMBOL_STUB_INSTRUCTIONS.as_slice(),

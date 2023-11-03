@@ -444,7 +444,8 @@ fn substitute_classes(
         || name == "GMGChocolateBarViewController"
         || name == "FacebookManager"
         || name == "NewsManager"
-        || name == "ListManager")
+        || name == "ListManager"
+        || name == "FLStat")
     {
         return None;
     }
