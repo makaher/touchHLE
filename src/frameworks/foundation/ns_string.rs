@@ -250,7 +250,7 @@ pub const CLASSES: ClassExports = objc_classes! {
 + (id)allocWithZone:(NSZonePtr)zone {
     // NSString might be subclassed by something which needs allocWithZone:
     // to have the normal behaviour. Unimplemented: call superclass alloc then.
-    assert!(this == env.objc.get_known_class("NSString", &mut env.mem));
+    //assert!(this == env.objc.get_known_class("NSString", &mut env.mem));
     msg_class![env; _touchHLE_NSString allocWithZone:zone]
 }
 
@@ -1045,6 +1045,30 @@ pub const CLASSES: ClassExports = objc_classes! {
 @end
 
 @implementation _touchHLE_NSString_CFConstantString_UTF16: _touchHLE_NSString_Static
+@end
+
+@implementation NSMutableString: NSString
+@end
+
+@implementation NSMutableURLRequest: NSObject
+
++ (id)requestWithURL:(id)_url cachePolicy:(id)pol timeoutInterval:(id)asdf {
+    nil
+}
+@end
+
+@implementation NSURLConnection: NSObject
+
++ (id)alloc {
+    nil
+}
+@end
+
+@implementation GKLocalPlayer: NSObject
+
++ (id)localPlayer {
+    nil
+}
 @end
 
 };

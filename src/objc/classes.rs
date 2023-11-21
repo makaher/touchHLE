@@ -445,7 +445,14 @@ fn substitute_classes(
         || name == "FacebookManager"
         || name == "NewsManager"
         || name == "ListManager"
-        || name == "FLStat")
+        || name == "FLStat"
+        || name == "TMUniversalTracking"
+        || name == "AdColony"
+        || name == "MobileAppTracker"
+        || name == "FiksuTrackingManager"
+        || name == "Flurry"
+        || name == "PHPublisherOpenRequest"
+    )
     {
         return None;
     }

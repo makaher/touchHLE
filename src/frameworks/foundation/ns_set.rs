@@ -5,6 +5,7 @@
  */
 //! The `NSSet` class cluster, including `NSMutableSet` and `NSCountedSet`.
 
+use crate::abi::DotDotDot;
 use super::ns_array;
 use super::ns_dictionary::DictionaryHostObject;
 use super::ns_enumerator::NSFastEnumerationState;
@@ -47,6 +48,12 @@ pub const CLASSES: ClassExports = objc_classes! {
     let new: id = msg![env; this alloc];
     let new: id = msg![env; new initWithObject:object];
     autorelease(env, new)
+}
+
++ (id)setWithObjects:(id)first, ...rest {
+    let this = msg![env; this alloc];
+    from_va_args(env, this, first, rest);
+    autorelease(env, this)
 }
 
 // NSCopying implementation
@@ -114,6 +121,11 @@ pub const CLASSES: ClassExports = objc_classes! {
 
     env.objc.borrow_mut::<SetHostObject>(this).dict = dict;
 
+    this
+}
+
+- (id)initWithObjects:(id)first, ...rest {
+    from_va_args(env, this, first, rest);
     this
 }
 
@@ -240,4 +252,19 @@ fn fast_enumeration_helper(
         },
     );
     batch_count
+}
+
+fn from_va_args(env: &mut Environment, this: id, first: id, rest: DotDotDot) {
+    let mut va_args = rest.start();
+    let mut dict = <DictionaryHostObject as Default>::default();
+    let null: id = msg_class![env; NSNull null];
+    dict.insert(env, first, null, /* copy_key: */ false);
+    loop {
+        let obj = va_args.next(env);
+        if obj == nil {
+            break;
+        }
+        dict.insert(env, obj, null, /* copy_key: */ false);
+    }
+    env.objc.borrow_mut::<SetHostObject>(this).dict = dict;
 }

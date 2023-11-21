@@ -40,10 +40,7 @@ use std::ffi::CStr;
 pub const CAPABILITIES: &[GLenum] = &[
     gl21::ALPHA_TEST,
     gl21::BLEND,
-    // ANGLE asserts if we try to check this capability.
-    // https://github.com/google/angle/blob/main/doc/ES1Status.md suggests that
-    // logic op support is incomplete, so that might be why.
-    //gl21::COLOR_LOGIC_OP,
+    gl21::COLOR_LOGIC_OP,
     gl21::CLIP_PLANE0,
     gl21::LIGHT0,
     gl21::LIGHT1,
@@ -829,6 +826,9 @@ impl GLES for GLES1OnGL2 {
             pname,
             params,
         )
+    }
+    unsafe fn LightModelfv(&mut self, pname: GLenum, params: *const GLfloat) {
+        gl21::LightModelfv(pname, params);
     }
     unsafe fn Materialf(&mut self, face: GLenum, pname: GLenum, param: GLfloat) {
         assert!(face == gl21::FRONT_AND_BACK);

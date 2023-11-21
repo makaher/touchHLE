@@ -315,6 +315,12 @@ pub const CONSTANTS: ConstantExports = &[
             mem.alloc_and_write(ptr).cast().cast_const()
         }),
     ),
+    (
+        "___stack_chk_guard",
+        HostConstant::Custom(|mem: &mut Mem| -> ConstVoidPtr {
+            mem.alloc_and_write(0xDEADBEEFu32).cast().cast_const()
+        }),
+    )
 ];
 
 pub const FUNCTIONS: FunctionExports = &[

@@ -93,10 +93,38 @@ fn AudioOutputUnitStart(
     0
 }
 
+fn AudioOutputUnitStop(
+    env: &mut Environment,
+    in_unit: AudioUnit,
+) -> OSStatus {
+    dbg!();
+    0
+}
+
+fn AudioUnitUninitialize(
+    env: &mut Environment,
+    in_unit: AudioUnit,
+) -> OSStatus {
+    dbg!();
+    0
+}
+
+fn AudioComponentInstanceDispose(
+    env: &mut Environment,
+    in_unit: AudioUnit,
+) -> OSStatus {
+    dbg!();
+    0
+}
+
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(AudioComponentFindNext(_, _)),
     export_c_func!(AudioComponentInstanceNew(_, _)),
     export_c_func!(AudioUnitSetProperty(_, _, _, _, _, _)),
     export_c_func!(AudioUnitInitialize(_)),
     export_c_func!(AudioOutputUnitStart(_)),
+    export_c_func!(AudioOutputUnitStop(_)),
+    export_c_func!(AudioUnitUninitialize(_)),
+    export_c_func!(AudioComponentInstanceDispose(_)),
 ];

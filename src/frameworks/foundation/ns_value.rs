@@ -250,5 +250,8 @@ pub const CLASSES: ClassExports = objc_classes! {
 // TODO: accessors etc
 
 @end
+    
+@implementation NSDecimalNumber: NSNumber
+@end
 
 };

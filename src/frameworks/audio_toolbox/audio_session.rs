@@ -12,6 +12,8 @@ use crate::frameworks::core_audio_types::{debug_fourcc, fourcc};
 use crate::frameworks::core_foundation::cf_run_loop::{CFRunLoopMode, CFRunLoopRef};
 use crate::mem::{guest_size_of, ConstVoidPtr, GuestUSize, MutPtr, MutVoidPtr};
 use crate::Environment;
+use crate::frameworks::foundation::ns_string::{from_rust_string, to_rust_string};
+use crate::objc::{autorelease, id};
 
 type AudioSessionInterruptionListener = GuestFunction;
 
@@ -22,9 +24,11 @@ type AudioSessionPropertyID = u32;
 const kAudioSessionProperty_OtherAudioIsPlaying: AudioSessionPropertyID = fourcc(b"othr");
 const kAudioSessionProperty_AudioCategory: AudioSessionPropertyID = fourcc(b"acat");
 const kAudioSessionProperty_AudioRouteChange: AudioSessionPropertyID = fourcc(b"roch");
+const kAudioSessionProperty_ServerDied: AudioSessionPropertyID = fourcc(b"died");
 const kAudioSessionProperty_AudioInputAvailable: AudioSessionPropertyID = fourcc(b"aiav");
 const kAudioSessionProperty_PreferredHardwareIOBufferDuration: AudioSessionPropertyID = fourcc(b"iobd");
 const kAudioSessionProperty_PreferredHardwareSampleRate: AudioSessionPropertyID = fourcc(b"hwsr");
+const kAudioSessionProperty_AudioRoute: AudioSessionPropertyID = fourcc(b"rout");
 
 const kAudioSessionCategory_SoloAmbientSound: u32 = fourcc(b"solo");
 
@@ -48,6 +52,8 @@ fn AudioSessionGetProperty(
     let required_size: GuestUSize = match in_ID {
         kAudioSessionProperty_OtherAudioIsPlaying => guest_size_of::<u32>(),
         kAudioSessionProperty_AudioCategory => guest_size_of::<u32>(),
+        kAudioSessionProperty_AudioInputAvailable => guest_size_of::<u32>(),
+        kAudioSessionProperty_AudioRoute => guest_size_of::<id>(),
         _ => unimplemented!("Unimplemented property ID: {}", debug_fourcc(in_ID)),
     };
     if env.mem.read(io_data_size) != required_size {
@@ -64,6 +70,15 @@ fn AudioSessionGetProperty(
             // This is the default value. TODO: Actually support changing it?
             let value: u32 = kAudioSessionCategory_SoloAmbientSound;
             env.mem.write(out_data.cast(), value);
+        }
+        kAudioSessionProperty_AudioInputAvailable => {
+            let value: u32 = 0;
+            env.mem.write(out_data.cast(), value);
+        }
+        kAudioSessionProperty_AudioRoute => {
+            let val = from_rust_string(env, "Speaker".to_string());
+            autorelease(env, val);
+            env.mem.write(out_data.cast(), val);
         }
         _ => unreachable!(),
     }
@@ -100,7 +115,9 @@ fn AudioSessionAddPropertyListener(
     _in_client_data: ConstVoidPtr
 ) -> OSStatus {
     match in_id {
-        kAudioSessionProperty_AudioRouteChange | kAudioSessionProperty_AudioInputAvailable => {
+        kAudioSessionProperty_AudioRouteChange |
+        kAudioSessionProperty_AudioInputAvailable |
+        kAudioSessionProperty_ServerDied => {
             // do nothing, routing never changes
         },
         _ => unimplemented!()

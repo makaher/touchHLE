@@ -304,40 +304,41 @@ impl Dyld {
     /// binaries symbols may be looked up in.
     fn do_non_lazy_linking(&mut self, bin: &MachO, bins: &[MachO], mem: &mut Mem, objc: &mut ObjC) {
         let mut unhandled_relocations: HashMap<&str, Vec<u32>> = HashMap::new();
-        for &(ptr_ptr, ref name) in &bin.external_relocations {
-            let ptr_ptr: MutPtr<ConstVoidPtr> = Ptr::from_bits(ptr_ptr);
-            // There will be an existing value at the address, which is an
-            // offset that should be applied to the external symbol's address.
-            // It is often 0, but not always.
-            let offset: u32 = mem.read(ptr_ptr).to_bits();
-            let target: ConstVoidPtr = if let Some(name) = name.strip_prefix("_OBJC_CLASS_$_") {
+        for rel in &bin.external_relocations {
+            let ptr_ptr: MutPtr<ConstVoidPtr> = Ptr::from_bits(rel.ptr_ptr);
+            let target: ConstVoidPtr = if let Some(name) = rel.name.strip_prefix("_OBJC_CLASS_$_") {
                 objc.link_class(name, /* is_metaclass: */ false, mem)
                     .cast()
                     .cast_const()
-            } else if let Some(name) = name.strip_prefix("_OBJC_METACLASS_$_") {
+            } else if let Some(name) = rel.name.strip_prefix("_OBJC_METACLASS_$_") {
                 objc.link_class(name, /* is_metaclass: */ true, mem)
                     .cast()
                     .cast_const()
-            } else if name == "___CFConstantStringClassReference" {
+            } else if rel.name == "___CFConstantStringClassReference" {
                 // See ns_string::register_constant_strings
                 nil.cast().cast_const()
-            } else if name == "__objc_empty_vtable" || name == "__objc_empty_cache" {
+            } else if rel.name == "__objc_empty_vtable" || rel.name == "__objc_empty_cache" {
                 // Our Objective-C runtime doesn't use these
                 Ptr::null()
             } else if let Some(&external_addr) = bins
                 .iter()
-                .flat_map(|other_bin| other_bin.exported_symbols.get(name))
+                .flat_map(|other_bin| other_bin.exported_symbols.get(&rel.name))
                 .next()
             {
                 // Often used for C++ RTTI
                 Ptr::from_bits(external_addr)
-            } else if search_lists(function_lists::FUNCTION_LISTS, name).is_some() {
-                assert_eq!(offset, 0);
-                self.functions_to_link_later.push((ptr_ptr, name.clone()));
+            } else if search_lists(function_lists::FUNCTION_LISTS, &rel.name).is_some() {
+                assert_eq!(rel.addend, 0);
+                self.functions_to_link_later.push((ptr_ptr, rel.name.clone()));
+                continue;
+            } else if let Some((_, template)) = search_lists(constant_lists::CONSTANT_LISTS, &rel.name) {
+                // Delay linking of constant until we have a `&mut Environment`,
+                // that makes it much easier to build NSString objects etc.
+                self.constants_to_link_later.push((ptr_ptr, template));
                 continue;
             } else {
                 unhandled_relocations
-                    .entry(name)
+                    .entry(&rel.name)
                     .or_default()
                     .push(ptr_ptr.to_bits());
                 continue;
@@ -346,7 +347,7 @@ impl Dyld {
             // seen it happen, but it would make sense if that is allowed.
             mem.write(
                 ptr_ptr,
-                Ptr::from_bits(target.to_bits().wrapping_add(offset)),
+                Ptr::from_bits(target.to_bits().wrapping_add(rel.addend)),
             )
         }
         // Collecting unhandled relocations for the same symbol onto one line
@@ -362,6 +363,10 @@ impl Dyld {
                     .collect::<Vec<String>>()
                     .join(", "),
             );
+        }
+
+        if bin.has_dyld_info {
+            return;
         }
 
         let Some(ptrs) = bin.get_section(SectionType::NonLazySymbolPointers) else {

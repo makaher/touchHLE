@@ -12,20 +12,11 @@
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::mem::{guest_size_of, MutPtr, SafeRead};
 use crate::Environment;
-
-type kern_return_t = i32;
-const KERN_SUCCESS: kern_return_t = 0;
-
-type mach_port_t = u32;
-
-type natural_t = u32;
-type integer_t = i32;
-type boolean_t = i32;
+use crate::libc::mach::{boolean_t, integer_t, kern_return_t, KERN_SUCCESS, mach_msg_type_number_t, mach_port_t, natural_t};
 
 type thread_inspect_t = mach_port_t;
 type thread_flavor_t = natural_t;
 type thread_info_t = MutPtr<integer_t>;
-type mach_msg_type_number_t = natural_t;
 
 type policy_t = i32;
 const POLICY_TIMESHARE: policy_t = 1;

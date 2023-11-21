@@ -17,9 +17,7 @@ pub mod dlfcn;
 pub mod errno;
 pub mod ifaddrs;
 pub mod keymgr;
-pub mod mach_host;
-pub mod mach_thread_info;
-pub mod mach_time;
+pub mod mach;
 pub mod math;
 pub mod mmap;
 pub mod net;
@@ -39,6 +37,7 @@ pub mod wchar;
 #[derive(Default)]
 pub struct State {
     keymgr: keymgr::State,
+    mach: mach::State,
     posix_io: posix_io::State,
     pthread: pthread::State,
     pub semaphore: semaphore::State,

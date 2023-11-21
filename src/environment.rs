@@ -462,7 +462,7 @@ impl Environment {
         frames
     }
 
-    fn stack_trace(&self) {
+    pub fn stack_trace(&self) {
         if self.current_thread == 0 {
             echo!("Attempting to produce stack trace for main thread:");
         } else {
@@ -926,6 +926,7 @@ impl Environment {
                         Some(&mut ticks)
                     },
                 );
+                //self.stack_trace();
                 match self.handle_cpu_state(state, initial_thread, root) {
                     ThreadNextAction::Continue => {
                         if step_and_debug {

@@ -58,16 +58,31 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 - (id)readDataOfLength:(NSUInteger)length {
     let buf = env.mem.alloc(length);
-    let obj = env.objc.borrow::<HandleHostObject>(this);
-    let rsize = read(env, obj.fd, buf, length) as NSUInteger;
-    msg_class![env; NSData dataWithBytesNoCopy:buf length: rsize]
+    let fd = env.objc.borrow::<HandleHostObject>(this).fd;
+    let mut read_off = 0;
+    while read_off < length {
+        let rsize = read(env, fd, buf + read_off, length - read_off);
+        if rsize == 0 || rsize == -1 {
+            break;
+        }
+        read_off += rsize as u32;
+    }
+
+    msg_class![env; NSData dataWithBytesNoCopy:buf length: read_off]
 }
 
 - (())writeData:(id)data {
     let bytes: ConstVoidPtr = msg![env; data bytes];
     let length: NSUInteger = msg![env; data length];
-    let obj = env.objc.borrow::<HandleHostObject>(this);
-    write(env, obj.fd, bytes, length);
+    let fd = env.objc.borrow::<HandleHostObject>(this).fd;
+    let mut write_off = 0;
+    while write_off < length {
+        let wsize = write(env, fd, bytes + write_off, length - write_off);
+        if wsize == 0 || wsize == -1 {
+            break;
+        }
+        write_off += wsize as u32;
+    }
 }
 
 - (())closeFile {

@@ -8,19 +8,14 @@
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::mem::{guest_size_of, MutPtr, SafeRead};
 use crate::Environment;
+use crate::libc::mach::{integer_t, kern_return_t, KERN_SUCCESS, mach_msg_type_number_t, mach_port_t};
 
-type mach_port_t = u32;
 type host_t = mach_port_t;
-type integer_t = i32;
 type host_flavor_t = integer_t;
 type host_info_t = MutPtr<integer_t>;
-type natural_t = u32;
-type mach_msg_type_number_t = natural_t;
-type kern_return_t = i32;
 
 const HOST_SELF: host_t = 0x484F5354; // HOST
 const HOST_VM_INFO: host_flavor_t = 2;
-const KERN_SUCCESS: kern_return_t = 0;
 
 #[repr(C, packed)]
 struct vm_statistics {

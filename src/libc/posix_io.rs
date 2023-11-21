@@ -229,6 +229,10 @@ pub fn read(
     // TODO: error handling for unknown fd?
     let mut file = env.libc_state.posix_io.file_for_fd(fd).unwrap();
 
+    if size > 1024 * 1024 * 10 {
+        panic!("{:x}", size);
+    }
+
     let buffer_slice = env.mem.bytes_at_mut(buffer.cast(), size);
     match file.file.read(buffer_slice) {
         Ok(bytes_read) => {

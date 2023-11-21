@@ -18,10 +18,7 @@ use super::ns_string::to_rust_string;
 use super::{ns_run_loop, ns_thread, NSUInteger};
 use crate::frameworks::foundation::ns_string::from_rust_string;
 use crate::mem::{ConstVoidPtr, MutVoidPtr};
-use crate::objc::{
-    autorelease, class_conformsToProtocol, id, msg, msg_class, msg_send, objc_classes, Class,
-    ClassExports, NSZonePtr, ObjC, TrivialHostObject, IMP, SEL,
-};
+use crate::objc::{autorelease, class_conformsToProtocol, id, msg, msg_class, msg_send, objc_classes, Class, ClassExports, NSZonePtr, ObjC, TrivialHostObject, IMP, SEL, release};
 
 pub const CLASSES: ClassExports = objc_classes! {
 
@@ -274,6 +271,17 @@ pub const CLASSES: ClassExports = objc_classes! {
     }
     let run_loop = ns_thread::get_run_loop(env, thread);
     ns_run_loop::schedule_invocation(env, run_loop, this, selector, arg);
+}
+
+- (())performSelectorInBackground:(SEL)sel
+                       withObject:(id)arg {
+    if sel.as_str(&env.mem) == "reportAppOpenToAdMob" {
+        return;
+    }
+    let thread = msg_class![env; NSThread alloc];
+    let thread = msg![env; thread initWithTarget:this selector:sel object:arg];
+    () = msg![env; thread start];
+    release(env, thread);
 }
 
 @end

@@ -37,7 +37,7 @@ pub type sem_t = i32;
 pub struct SemaphoreHostObject {
     pub value: i32,
     pub waiting: HashSet<ThreadId>,
-    guest_sem: Option<MutPtr<sem_t>>,
+    pub guest_sem: Option<MutPtr<sem_t>>,
 }
 
 fn sem_open(

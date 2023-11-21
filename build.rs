@@ -101,11 +101,4 @@ pub fn main() {
     let dynarmic_summary = dynarmic_legal.replace(dynarmic_license_oneline, &dynarmic_license);
     std::fs::write(out_dir.join("dynarmic_license.txt"), dynarmic_summary).unwrap();
 
-    // ANGLE hack (TODO: cleanup)
-    println!(
-        "cargo:rustc-link-search=native={}",
-        package_root.join("angle").to_str().unwrap()
-    );
-    println!("cargo:rustc-link-lib=dylib=EGL");
-    println!("cargo:rustc-link-lib=dylib=GLESv1_CM");
 }

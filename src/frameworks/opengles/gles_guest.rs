@@ -73,7 +73,7 @@ fn glGetError(env: &mut Environment) -> GLenum {
         if err != 0 {
             log!("Warning: glGetError() returned {:#x}", err);
         }
-        0 //err
+        err
     })
 }
 fn glEnable(env: &mut Environment, cap: GLenum) {
@@ -263,6 +263,12 @@ fn glLightxv(env: &mut Environment, light: GLenum, pname: GLenum, params: ConstP
     with_ctx_and_mem(env, |gles, mem| {
         let params = mem.ptr_at(params, 4 /* upper bound */);
         unsafe { gles.Lightxv(light, pname, params) }
+    })
+}
+fn glLightModelfv(env: &mut Environment, pname: GLenum, params: ConstPtr<GLfloat>) {
+    with_ctx_and_mem(env, |gles, mem| {
+        let params = mem.ptr_at(params, 4 /* upper bound */);
+        unsafe { gles.LightModelfv(pname, params) }
     })
 }
 fn glMaterialf(env: &mut Environment, face: GLenum, pname: GLenum, param: GLfloat) {
@@ -1040,6 +1046,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(glLightx(_, _, _)),
     export_c_func!(glLightfv(_, _, _)),
     export_c_func!(glLightxv(_, _, _)),
+    export_c_func!(glLightModelfv(_, _)),
     export_c_func!(glMaterialf(_, _, _)),
     export_c_func!(glMaterialx(_, _, _)),
     export_c_func!(glMaterialfv(_, _, _)),

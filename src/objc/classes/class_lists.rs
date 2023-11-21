@@ -7,7 +7,7 @@
 //! very long and frequently-updated list.
 
 use crate::frameworks::{
-    avf_audio, core_animation, core_graphics, foundation, media_player, opengles, uikit,
+    avf_audio, core_animation, core_graphics, foundation, media_player, opengles, store_kit, uikit,
 };
 
 /// All the lists of classes that the runtime should search through.
@@ -38,6 +38,7 @@ pub const CLASS_LISTS: &[super::ClassExports] = &[
     foundation::ns_notification::CLASSES,
     foundation::ns_notification_center::CLASSES,
     foundation::ns_null::CLASSES,
+    foundation::ns_number_formatter::CLASSES,
     foundation::ns_object::CLASSES,
     foundation::ns_operation::CLASSES,
     foundation::ns_process_info::CLASSES,
@@ -53,6 +54,8 @@ pub const CLASS_LISTS: &[super::ClassExports] = &[
     foundation::ns_value::CLASSES,
     media_player::movie_player::CLASSES,
     opengles::eagl::CLASSES,
+    store_kit::sk_payment_queue::CLASSES,
+    store_kit::sk_request::CLASSES,
     uikit::ui_accelerometer::CLASSES,
     uikit::ui_application::CLASSES,
     uikit::ui_color::CLASSES,

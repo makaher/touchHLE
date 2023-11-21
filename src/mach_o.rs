@@ -20,14 +20,11 @@
 
 use crate::abi::GuestFunction;
 use crate::fs::{Fs, GuestPath};
-use crate::mem::{Mem, Ptr};
-use mach_object::{
-    cpu_subtype_t, vm_prot_t, DyLib, LoadCommand, MachCommand, OFile, Symbol, SymbolIter,
-    ThreadState, N_ARM_THUMB_DEF, S_LAZY_SYMBOL_POINTERS, S_MOD_INIT_FUNC_POINTERS,
-    S_NON_LAZY_SYMBOL_POINTERS, S_SYMBOL_STUBS,
-};
+use crate::mem::{ConstPtr, Mem, Ptr};
+use mach_object::{cpu_subtype_t, vm_prot_t, DyLib, LoadCommand, MachCommand, OFile, Symbol, SymbolIter, ThreadState, N_ARM_THUMB_DEF, S_LAZY_SYMBOL_POINTERS, S_MOD_INIT_FUNC_POINTERS, S_NON_LAZY_SYMBOL_POINTERS, S_SYMBOL_STUBS, Bind, BindSymbolType, ExportTrie, ExportType, ExportKind, LazyBind, WeakBind};
 use std::collections::HashMap;
 use std::io::{Cursor, Seek, SeekFrom};
+use std::rc::Rc;
 
 const VM_PROT_READ: vm_prot_t = 1;
 const VM_PROT_WRITE: vm_prot_t = 2;
@@ -48,12 +45,13 @@ pub struct MachO {
     pub exported_symbols: HashMap<String, u32>,
     /// List of addresses and names of external relocations for the dynamic
     /// linker to resolve.
-    pub external_relocations: Vec<(u32, String)>,
+    pub external_relocations: Vec<ExternalRelocation>,
     /// Address/program counter value for the entry point.
     pub entry_point_pc: Option<u32>,
     /// Used to detect and disable ad frameworks that require much more UIKit
     /// than we currently have
     pub debug_symbols: HashMap<String, u32>,
+    pub has_dyld_info: bool,
 }
 
 #[derive(Debug)]
@@ -97,6 +95,13 @@ pub struct DyldIndirectSymbolInfo {
     pub entry_size: u32,
     /// A list of symbol names corresponding to the entries.
     pub indirect_undef_symbols: Vec<Option<String>>,
+}
+
+#[derive(Debug)]
+pub struct ExternalRelocation {
+    pub ptr_ptr: u32,
+    pub name: String,
+    pub addend: u32
 }
 
 /// Helper trait that makes [MachO::get_section] work. Yes, this is overkill. :)
@@ -232,6 +237,12 @@ fn cpu_subtype_to_str(ty: cpu_subtype_t) -> &'static str {
     }
 }
 
+struct SymbolLists {
+    exported_symbols: HashMap<String, u32>,
+    debug_symbols: HashMap<String, u32>,
+    external_relocations: Vec<ExternalRelocation>,
+}
+
 impl MachO {
     /// Load the all the sections from a Mach-O binary (provided as `bytes`)
     /// into the guest memory (`into_mem`), and return a struct containing
@@ -304,18 +315,17 @@ impl MachO {
         let mut first_read_write_segment_base: Option<u32> = None;
         let mut text_segment_base: Option<u32> = None;
         let mut all_sections = Vec::new();
-        let mut sym_tab_info: Option<(u32, u32, u32, u32)> = None;
+        let mut segment_starts = Vec::new();
 
         // Info used for the result
         let mut dynamic_libraries = Vec::new();
-        let mut exported_symbols = HashMap::new();
-        let mut debug_symbols = HashMap::new();
-        let mut indirect_undef_symbols: Vec<Option<String>> = Vec::new();
-        let mut external_relocations: Vec<(u32, String)> = Vec::new();
         let mut entry_point_pc: Option<u32> = None;
+        let mut dyld_info = None;
+        let mut indirect_undef_symbols: Vec<Option<String>> = Vec::new();
+        let mut sym_tab_info: Option<(u32, u32, u32, u32)> = None;
 
-        for MachCommand(command, _size) in commands {
-            match command {
+        for MachCommand(command, _size) in &commands {
+            match command.clone() {
                 LoadCommand::Segment {
                     segname,
                     vmaddr,
@@ -377,6 +387,7 @@ impl MachO {
                         }
                     }
 
+                    segment_starts.push(vmaddr);
                     all_sections.extend_from_slice(&sections);
                 }
                 LoadCommand::SymTab {
@@ -386,60 +397,23 @@ impl MachO {
                     strsize,
                 } => {
                     sym_tab_info = Some((symoff, nsyms, stroff, strsize));
-                    if cursor.seek(SeekFrom::Start(symoff.into())).is_ok() {
-                        let mut cursor = cursor.clone();
-                        let symbols = SymbolIter::new(
-                            &mut cursor,
-                            all_sections.clone(),
-                            nsyms,
-                            stroff,
-                            strsize,
-                            is_bigend,
-                            is_64bit,
-                        );
-                        for symbol in symbols {
-                            if let Symbol::Debug { name, addr, .. } = symbol {
-                                let addr = addr as u32;
-                                debug_symbols.insert(name.unwrap_or_default().to_string(), addr);
-                            }
-                            if let Symbol::Defined {
-                                name: Some(name),
-                                external: true,
-                                entry,
-                                desc,
-                                ..
-                            } = symbol
-                            {
-                                let entry: u32 = entry.try_into().unwrap();
-                                let entry = if desc & N_ARM_THUMB_DEF != 0 {
-                                    entry | GuestFunction::THUMB_BIT
-                                } else {
-                                    entry
-                                };
-                                exported_symbols.insert(name.to_string(), entry);
-                            };
-                        }
-                    }
                 }
                 LoadCommand::DySymTab {
                     indirectsymoff,
                     nindirectsyms,
-                    extreloff,
-                    nextrel,
                     ..
                 } => {
                     let indirectsyms =
                         &bytes[indirectsymoff as usize..][..nindirectsyms as usize * 4];
                     for idx in indirectsyms.chunks(4) {
-                        assert!(!is_bigend);
                         let idx = u32::from_le_bytes(idx.try_into().unwrap());
 
                         let mut cursor = cursor.clone();
                         let sym = get_sym_by_idx(
                             idx,
                             sym_tab_info.unwrap(),
-                            is_bigend,
-                            is_64bit,
+                            false,
+                            false,
                             &mut cursor,
                         );
                         indirect_undef_symbols.push(match sym {
@@ -453,62 +427,6 @@ impl MachO {
                             None => None,
                             _ => panic!("Unexpected symbol kind {:?}", sym),
                         })
-                    }
-
-                    let extrels = &bytes[extreloff as usize..][..nextrel as usize * 8];
-                    for entry in extrels.chunks(8) {
-                        let reloc = Reloc::parse(is_bigend, entry.try_into().unwrap());
-                        let Reloc::External {
-                            addr,
-                            sym_idx,
-                            is_pc_relative: false,
-                            size: 4,
-                            type_: 0, // generic
-                        } = reloc
-                        else {
-                            panic!("Unhandled extrel: {:?}", reloc)
-                        };
-                        let addr = if split_segs {
-                            addr + first_read_write_segment_base.unwrap()
-                        } else {
-                            addr + first_segment_base.unwrap()
-                        };
-
-                        let mut cursor = cursor.clone();
-                        let sym = get_sym_by_idx(
-                            sym_idx,
-                            sym_tab_info.unwrap(),
-                            is_bigend,
-                            is_64bit,
-                            &mut cursor,
-                        );
-                        match sym {
-                            Some(Symbol::Undefined { name: Some(n), .. }) => {
-                                external_relocations.push((addr, String::from(n)));
-                            }
-                            Some(Symbol::Defined { entry, desc, .. }) => {
-                                // Apparently these are used for internal
-                                // (intra-binary) relocations, despite being
-                                // in the external section?
-                                //
-                                // Resolve them immediately, there is no value
-                                // in passing these on to Dyld.
-                                let addr = Ptr::from_bits(addr);
-                                let entry = entry as u32;
-                                let entry = if desc & N_ARM_THUMB_DEF != 0 {
-                                    entry | GuestFunction::THUMB_BIT
-                                } else {
-                                    entry
-                                };
-                                into_mem.write(addr, entry);
-                            }
-                            Some(Symbol::Prebound { name: Some(n), .. }) => {
-                                let ptr_ptr = Ptr::<u32, true>::from_bits(addr);
-                                into_mem.write(ptr_ptr, 0); // Clear prebinding.
-                                external_relocations.push((addr, String::from(n)));
-                            }
-                            _ => panic!("Unexpected symbol kind {:?}", sym),
-                        };
                     }
                 }
                 LoadCommand::EncryptionInfo { id, .. } => {
@@ -551,14 +469,25 @@ impl MachO {
                     let entryoff: u32 = entryoff.try_into().unwrap();
                     entry_point_pc = Some(text_segment_base.unwrap() + entryoff);
                 }
-                // LoadCommand::DyldInfo is apparently a newer thing that 2008
-                // games don't have. Ignore for now? Unsure if/when iOS got it.
-                LoadCommand::DyldInfo { .. } => {
-                    log!("Warning! DyldInfo is not handled.");
+                info@LoadCommand::DyldInfo { .. } => {
+                    dyld_info = Some(info);
                 }
                 _ => (),
             }
         }
+
+        let first_base = if split_segs {
+            first_read_write_segment_base.unwrap()
+        } else {
+            first_segment_base.unwrap()
+        };
+        let SymbolLists {
+            exported_symbols, debug_symbols, external_relocations
+        } = if let Some(dyld_info) = &dyld_info {
+            MachO::process_compressed_symbols(dyld_info, bytes, &segment_starts, text_segment_base.unwrap())
+        } else {
+            MachO::process_old_symbols(&commands, bytes, into_mem, &all_sections, first_base)
+        };
 
         let sections = all_sections
             .iter()
@@ -619,7 +548,197 @@ impl MachO {
             external_relocations,
             entry_point_pc,
             debug_symbols,
+            has_dyld_info: dyld_info.is_some(),
         })
+    }
+
+    fn process_compressed_symbols(
+        dyld_info: &LoadCommand,
+        bytes: &[u8],
+        segment_starts: &[u32],
+        text_base: u32
+    ) -> SymbolLists {
+        let &LoadCommand::DyldInfo {
+            rebase_off, rebase_size,
+            bind_off, bind_size,
+            weak_bind_off, weak_bind_size,
+            lazy_bind_off, lazy_bind_size,
+            export_off, export_size
+        } = dyld_info else {
+            unreachable!()
+        };
+        let mut exported_symbols = HashMap::new();
+        let mut external_relocations: Vec<ExternalRelocation> = Vec::new();
+        for bind in Bind::parse(&bytes[bind_off as usize..(bind_off+bind_size) as usize], 4) {
+            assert_eq!(bind.symbol_type, BindSymbolType::Pointer);
+            let addr = bind.symbol_offset as u32 + segment_starts[bind.segment_index];
+            let rel = ExternalRelocation {
+                ptr_ptr: addr,
+                name: bind.name,
+                addend: bind.addend as u32
+            };
+            external_relocations.push(rel);
+        }
+        for bind in WeakBind::parse(&bytes[weak_bind_off as usize..(weak_bind_off+weak_bind_size) as usize], 4) {
+            assert_eq!(bind.symbol_type, BindSymbolType::Pointer);
+            let addr = bind.symbol_offset as u32 + segment_starts[bind.segment_index];
+            let rel = ExternalRelocation {
+                ptr_ptr: addr,
+                name: bind.name,
+                addend: bind.addend as u32
+            };
+            external_relocations.push(rel);
+        }
+        for export in ExportTrie::parse(&bytes[export_off as usize..(export_off+export_size) as usize]).unwrap().symbols() {
+            assert_eq!(export.kind, ExportKind::Regular);
+            let addr = match export.symbol {
+                ExportType::Regular {address} => address,
+                ExportType::Weak {address} => address,
+                _ => unimplemented!()
+            };
+            exported_symbols.insert(export.name, addr as u32 + text_base);
+        }
+        SymbolLists {
+            exported_symbols, external_relocations,
+            debug_symbols: HashMap::new()
+        }
+    }
+
+    fn process_old_symbols(
+        commands: &[MachCommand],
+        bytes: &[u8],
+        into_mem: &mut Mem,
+        all_sections: &[Rc<mach_object::Section>],
+        first_base: u32
+    ) -> SymbolLists {
+        let mut sym_tab_info: Option<(u32, u32, u32, u32)> = None;
+        let mut exported_symbols = HashMap::new();
+        let mut debug_symbols = HashMap::new();
+        let mut external_relocations: Vec<ExternalRelocation> = Vec::new();
+        let mut cursor = Cursor::new(bytes);
+        for MachCommand(command, _size) in commands {
+            match command {
+                &LoadCommand::SymTab {
+                    symoff,
+                    nsyms,
+                    stroff,
+                    strsize,
+                } => {
+                    sym_tab_info = Some((symoff, nsyms, stroff, strsize));
+                    if cursor.seek(SeekFrom::Start(symoff.into())).is_ok() {
+                        let mut cursor = cursor.clone();
+                        let symbols = SymbolIter::new(
+                            &mut cursor,
+                            all_sections.to_vec(),
+                            nsyms,
+                            stroff,
+                            strsize,
+                            false,
+                            false,
+                        );
+                        for symbol in symbols {
+                            if let Symbol::Debug { name, addr, .. } = symbol {
+                                let addr = addr as u32;
+                                debug_symbols.insert(name.unwrap_or_default().to_string(), addr);
+                            }
+                            if let Symbol::Defined {
+                                name: Some(name),
+                                external: true,
+                                entry,
+                                desc,
+                                ..
+                            } = symbol
+                            {
+                                let entry: u32 = entry.try_into().unwrap();
+                                let entry = if desc & N_ARM_THUMB_DEF != 0 {
+                                    entry | GuestFunction::THUMB_BIT
+                                } else {
+                                    entry
+                                };
+                                exported_symbols.insert(name.to_string(), entry);
+                            };
+                        }
+                    }
+                }
+                &LoadCommand::DySymTab {
+                    indirectsymoff,
+                    nindirectsyms,
+                    extreloff,
+                    nextrel,
+                    ..
+                } => {
+                    let extrels = &bytes[extreloff as usize..][..nextrel as usize * 8];
+                    for entry in extrels.chunks(8) {
+                        let reloc = Reloc::parse(false, entry.try_into().unwrap());
+                        let Reloc::External {
+                            addr,
+                            sym_idx,
+                            is_pc_relative: false,
+                            size: 4,
+                            type_: 0, // generic
+                        } = reloc
+                            else {
+                                panic!("Unhandled extrel: {:?}", reloc)
+                            };
+                        let addr = addr + first_base;
+
+                        let mut cursor = cursor.clone();
+                        let sym = get_sym_by_idx(
+                            sym_idx,
+                            sym_tab_info.unwrap(),
+                            false,
+                            false,
+                            &mut cursor,
+                        );
+                        match sym {
+                            Some(Symbol::Undefined { name: Some(n), .. }) => {
+                                // There will be an existing value at the address, which is an
+                                // offset that should be applied to the external symbol's address.
+                                // It is often 0, but not always.
+                                let addend = into_mem.read(ConstPtr::from_bits(addr));
+                                let rel = ExternalRelocation {
+                                    addend,
+                                    ptr_ptr: addr,
+                                    name: String::from(n),
+                                };
+                                external_relocations.push(rel);
+                            }
+                            Some(Symbol::Defined { entry, desc, .. }) => {
+                                // Apparently these are used for internal
+                                // (intra-binary) relocations, despite being
+                                // in the external section?
+                                //
+                                // Resolve them immediately, there is no value
+                                // in passing these on to Dyld.
+                                let addr = Ptr::from_bits(addr);
+                                let entry = entry as u32;
+                                let entry = if desc & N_ARM_THUMB_DEF != 0 {
+                                    entry | GuestFunction::THUMB_BIT
+                                } else {
+                                    entry
+                                };
+                                into_mem.write(addr, entry);
+                            }
+                            Some(Symbol::Prebound { name: Some(n), .. }) => {
+                                let ptr_ptr = Ptr::<u32, true>::from_bits(addr);
+                                into_mem.write(ptr_ptr, 0); // Clear prebinding.
+                                let rel = ExternalRelocation {
+                                    ptr_ptr: addr,
+                                    name: String::from(n),
+                                    addend: 0
+                                };
+                                external_relocations.push(rel);
+                            }
+                            _ => panic!("Unexpected symbol kind {:?}", sym),
+                        };
+                    }
+                }
+                _ => (),
+            }
+        }
+        SymbolLists {
+            exported_symbols, debug_symbols, external_relocations
+        }
     }
 
     /// Load the all the sections from a Mach-O binary (from `path`) into the

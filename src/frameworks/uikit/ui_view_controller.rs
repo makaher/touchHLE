@@ -6,15 +6,19 @@
 //! `UIViewController`.
 
 use crate::frameworks::foundation::ns_string::get_static_str;
+use crate::frameworks::uikit::ui_device::{UIDeviceOrientation, UIDeviceOrientationLandscapeLeft, UIDeviceOrientationLandscapeRight, UIDeviceOrientationPortrait};
 use crate::objc::{
     id, msg, msg_class, nil, objc_classes, release, retain, ClassExports, HostObject, NSZonePtr,
 };
+use crate::window::DeviceOrientation;
 
 #[derive(Default)]
 pub struct UIViewControllerHostObject {
     view: id,
 }
 impl HostObject for UIViewControllerHostObject {}
+
+type UIInterfaceOrientation = UIDeviceOrientation;
 
 pub const CLASSES: ClassExports = objc_classes! {
 
@@ -70,6 +74,14 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 - (())setEditing:(bool)editing {
     log!("TODO: [(UIViewController*){:?} setEditing:{}]", this, editing); // TODO
+}
+
+- (UIInterfaceOrientation)interfaceOrientation {
+    match env.window().current_rotation() {
+        DeviceOrientation::Portrait => UIDeviceOrientationPortrait,
+        DeviceOrientation::LandscapeLeft => UIDeviceOrientationLandscapeLeft,
+        DeviceOrientation::LandscapeRight => UIDeviceOrientationLandscapeRight
+    }
 }
 
 @end

@@ -27,6 +27,7 @@ pub const CONSTANT_LISTS: &[super::ConstantExports] = &[
     foundation::ns_error::CONSTANTS,
     foundation::ns_exception::CONSTANTS,
     foundation::ns_run_loop::CONSTANTS,
+    libc::mach::mach_task::CONSTANTS,
     media_player::movie_player::CONSTANTS,
     opengles::eagl::CONSTANTS,
     uikit::ui_application::CONSTANTS,

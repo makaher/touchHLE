@@ -62,3 +62,7 @@ com.idsoftware.Doom2rpg: --landscape-left --stabilize-virtual-cursor=0.1,10 --bu
 
 # 3D Brick Breaker Revolution
 com.digitalchocolate.iwall: --landscape-right
+
+# Galaxy on Fire 2
+# A = primary weapon, X = secondary weapon
+www.fishlabs.net.gof2:  --button-to-touch=A,432,273 --button-to-touch=X,385,283 

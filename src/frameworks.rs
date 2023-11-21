@@ -32,6 +32,7 @@ pub mod foundation;
 pub mod media_player;
 pub mod openal;
 pub mod opengles;
+pub mod store_kit;
 pub mod uikit;
 
 /// Container for state of various child modules
@@ -44,5 +45,6 @@ pub struct State {
     media_player: media_player::State,
     openal: openal::State,
     opengles: opengles::State,
+    store_kit: store_kit::State,
     uikit: uikit::State,
 }
