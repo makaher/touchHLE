@@ -166,7 +166,6 @@ dependencies {
             }
         }
     }
-}
 
 cargoNdk {
     // Make sure this matches the android abiFilters above.
