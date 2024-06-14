@@ -2,9 +2,9 @@ name: Build touchHLE
 
 on:
   push:
-    branches: [ "tmp-driver" ]
+    branches: [ "patch-4" ]
   pull_request:
-    branches: [ "tmp-driver" ]
+    branches: [ "trunk" ]
 
 env:
   CARGO_TERM_COLOR: always
