@@ -4,10 +4,10 @@
 [workspace]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.1.2"
 edition = "2021"
 license = "MPL-2.0"
-authors = ["touchHLE project contributors"]
+authors = ["hikari_no_yume <hikari@noyu.me>", "Contributors to touchHLE"]
 homepage = "https://touchhle.org/"
 
 [package]
@@ -33,7 +33,7 @@ static = ["sdl2/bundled", "sdl2/static-link", "touchHLE_openal_soft_wrapper/stat
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace.dependencies]
-cc = "1.0.83"
+cc = "1.0.77"
 cmake = "0.1.49"
 gl_generator = "0.14.0"
 
@@ -44,11 +44,6 @@ mach_object = "0.1.17"
 plist = "1.3.1"
 zip = { version = "0.6.4", default-features = false, features = ["deflate"] }
 rusttype = "0.9.3"
-# Symphonia is only used by src/audio/aac.rs right now, so that determines the
-# supported features. Only the AAC-LC profile (the "aac" feature) should be
-# enabled, because it's old enough that it *probably* isn't patent-encumbered,
-# but IANAL. Newer AAC profiles on the other hand are nightmares.
-symphonia = { version = "0.5.3", default-features = false, features = ["aac", "isomp4"] }
 # We currently use a fork of rust-sdl2 because we need a fix for Android builds
 # that's not upstream yet.
 # The HIDAPI feature is enabled because rust-sdl2 hides the SDL2 sensor features
@@ -56,7 +51,12 @@ symphonia = { version = "0.5.3", default-features = false, features = ["aac", "i
 # Note that the submodule in vendor/SDL2/ must use exactly the same revision of
 # SDL2 that rust-sdl2 uses, so that the Android JNI interface matches.
 sdl2 = { git = "https://github.com/hikari-no-yume/rust-sdl2.git", tag = "touchHLE-2", features = ["hidapi"] }
-sdl2-sys = { git = "https://github.com/hikari-no-yume/rust-sdl2.git", tag = "touchHLE-2" }
+sdl2-sys = { git = "https://github.com/hikari-no-yume/rust-sdl2.git", tag = "touchHLE-2" 
+touchHLE_dynarmic_wrapper = { path = "src/cpu/dynarmic_wrapper" }
+touchHLE_gl_bindings = { path = "src/gles/gl_bindings" }
+touchHLE_openal_soft_wrapper = { path = "src/audio/openal_soft_wrapper" }
+touchHLE_pvrt_decompress_wrapper = { path = "src/image/pvrt_decompress_wrapper" }
+touchHLE_stb_image_wrapper = { path = "src/image/stb_image_wrapper" }
 
 [build-dependencies]
 cargo-license = "0.5.1"
