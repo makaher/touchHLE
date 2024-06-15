@@ -57,11 +57,6 @@ symphonia = { version = "0.5.3", default-features = false, features = ["aac", "i
 # SDL2 that rust-sdl2 uses, so that the Android JNI interface matches.
 sdl2 = { git = "https://github.com/hikari-no-yume/rust-sdl2.git", tag = "touchHLE-2", features = ["hidapi"] }
 sdl2-sys = { git = "https://github.com/hikari-no-yume/rust-sdl2.git", tag = "touchHLE-2" }
-touchHLE_dynarmic_wrapper = { path = "src/cpu/dynarmic_wrapper" }
-touchHLE_gl_bindings = { path = "src/gles/gl_bindings" }
-touchHLE_openal_soft_wrapper = { path = "src/audio/openal_soft_wrapper" }
-touchHLE_pvrt_decompress_wrapper = { path = "src/image/pvrt_decompress_wrapper" }
-touchHLE_stb_image_wrapper = { path = "src/image/stb_image_wrapper" }
 
 [build-dependencies]
 cargo-license = "0.5.1"
