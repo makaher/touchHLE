@@ -113,6 +113,26 @@ fn CGImageCreateWithPNGDataProvider(
     from_image(env, image)
 }
 
+fn CGImageCreateWithJPEGDataProvider(
+    env: &mut Environment,
+    source: CGDataProviderRef,
+    decode: ConstPtr<CGFloat>,
+    _should_interpolate: bool, // TODO
+    _intent: i32,              // TODO (should be CGColorRenderingIntent)
+) -> CGImageRef {
+    assert!(decode.is_null()); // TODO
+
+    // TODO: is there anyhting else we should do here, this seems to just work :tm: ?
+
+    let bytes = cg_data_provider::borrow_bytes(env, source);
+    let Ok(image) = Image::from_bytes(bytes) else {
+        // Docs don't say what happens on failure, but this would make sense.
+        return nil;
+    };
+
+    from_image(env, image)
+}
+
 fn CGImageGetAlphaInfo(_env: &mut Environment, _image: CGImageRef) -> CGImageAlphaInfo {
     // our Image type always returns premultiplied RGBA
     // (the premultiplied part must match what the real UIImage does, but
@@ -148,6 +168,17 @@ fn CGImageGetBitsPerPixel(_env: &mut Environment, _image: CGImageRef) -> GuestUS
     32
 }
 
+fn CGImageGetBytesPerRow(env: &mut Environment, image: CGImageRef) -> GuestUSize {
+    let width = CGImageGetWidth(env, image);
+    let bits_per_pixel = CGImageGetBitsPerPixel(env, image);
+    width as GuestUSize * bits_per_pixel / 8
+}
+
+fn CGImageGetBitmapInfo(_env: &mut Environment, _image: CGImageRef) -> u32 {
+    0x2000 // CGBitmapByteOrder32Little
+    // 0x4000 // CGBitmapByteOrder32Big
+}
+
 fn CGImageGetDataProvider(env: &mut Environment, image: CGImageRef) -> CGDataProviderRef {
     // CGImageGetDataProvider() seems to be intended to return the underlying
     // data provider that is retained by the CGImage. That's not how CGImage is
@@ -168,11 +199,14 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CGImageRelease(_)),
     export_c_func!(CGImageRetain(_)),
     export_c_func!(CGImageCreateWithPNGDataProvider(_, _, _, _)),
+    export_c_func!(CGImageCreateWithJPEGDataProvider(_, _, _, _)),
     export_c_func!(CGImageGetAlphaInfo(_)),
     export_c_func!(CGImageGetColorSpace(_)),
     export_c_func!(CGImageGetWidth(_)),
     export_c_func!(CGImageGetHeight(_)),
     export_c_func!(CGImageGetBitsPerPixel(_)),
+    export_c_func!(CGImageGetBytesPerRow(_)),
+    export_c_func!(CGImageGetBitmapInfo(_)),
     export_c_func!(CGImageGetDataProvider(_)),
     export_c_func!(CGImageGetBitsPerComponent(_)),
 ];
