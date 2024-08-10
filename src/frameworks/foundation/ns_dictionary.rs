@@ -203,6 +203,15 @@ pub const CLASSES: ClassExports = objc_classes! {
     msg![env; this objectForKey:key]
 }
 
+- (id)stringForKey:(id)key { // NSString*
+    let result: id = msg![env; this objectForKey:key];
+    if result == nil {
+        return nil;
+    }
+    let str = to_rust_string(env, result);
+    from_rust_string(env, str.to_string())
+}
+
 @end
 
 // NSMutableDictionary is an abstract class. A subclass must provide everything
