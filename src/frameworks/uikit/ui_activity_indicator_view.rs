@@ -20,6 +20,10 @@ pub const CLASSES: ClassExports = objc_classes! {
     msg![env; this init]
 }
 
+- (())stopAnimating {
+    let _: () = msg![env; this setHidden: true];
+}
+
 @end
 
 };

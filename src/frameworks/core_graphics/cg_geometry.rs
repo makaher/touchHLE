@@ -172,11 +172,29 @@ fn CGRectContainsPoint(_env: &mut Environment, rect: CGRect, point: CGPoint) -> 
         && rect.origin.y + rect.size.height > point.y
 }
 
+fn CGRectGetMaxX(_env: &mut Environment, rect: CGRect) -> CGFloat {
+    rect.origin.x + rect.size.width
+}
+
+fn CGRectGetMaxY(_env: &mut Environment, rect: CGRect) -> CGFloat {
+    rect.origin.y + rect.size.height
+}
+
+fn CGRectOffset(_env: &mut Environment, rect: CGRect, dx: CGFloat, dy: CGFloat) -> CGRect {
+    let mut copy = rect;
+    copy.origin.x += dx;
+    copy.origin.y += dy;
+    copy
+}
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CGPointEqualToPoint(_, _)),
     export_c_func!(CGSizeEqualToSize(_, _)),
     export_c_func!(CGRectEqualToRect(_, _)),
     export_c_func!(CGRectContainsPoint(_, _)),
+    export_c_func!(CGRectGetMaxX(_)),
+    export_c_func!(CGRectGetMaxY(_)),
+    export_c_func!(CGRectOffset(_, _, _)),
 ];
 
 pub const CONSTANTS: ConstantExports = &[

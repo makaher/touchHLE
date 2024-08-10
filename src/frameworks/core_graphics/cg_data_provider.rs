@@ -5,6 +5,8 @@
  */
 //! `CGDataProvider.h`
 
+use std::ptr::null;
+
 use super::cg_image::{self, CGImageRef, CGImageRelease, CGImageRetain};
 use crate::abi::{CallFromHost, GuestFunction};
 use crate::dyld::FunctionExports;
@@ -13,8 +15,9 @@ use crate::frameworks::core_foundation::cf_allocator::kCFAllocatorDefault;
 use crate::frameworks::core_foundation::cf_data::{CFDataCreate, CFDataRef};
 use crate::frameworks::core_foundation::{CFRelease, CFRetain, CFTypeRef};
 use crate::frameworks::foundation::NSUInteger;
-use crate::mem::{ConstVoidPtr, GuestUSize, MutVoidPtr};
-use crate::objc::{id, msg, msg_class, objc_classes, ClassExports, HostObject};
+use crate::fs::GuestPath;
+use crate::mem::{ConstPtr, ConstVoidPtr, GuestUSize, MutVoidPtr};
+use crate::objc::{id, msg, msg_class, nil, objc_classes, ClassExports, HostObject};
 use crate::Environment;
 
 pub type CGDataProviderRef = CFTypeRef;
@@ -112,6 +115,34 @@ fn CGDataProviderCreateWithData(
     )
 }
 
+fn CGDataProviderCreateWithFilename(
+    env: &mut Environment,
+    filename: ConstPtr<u8>,
+) -> CGDataProviderRef {
+    if filename.is_null() {
+        return nil;
+    }
+    let path = String::from_utf8_lossy(env.mem.cstr_at(filename));
+    log!("Reading file: {}", &path);
+    let Ok(bytes) = env.fs.read(GuestPath::new(&path)) else {
+        log!("Failed to read file: {}", &path);
+        return nil;
+    };
+    let size = bytes.len().try_into().unwrap();
+    let alloc = env.mem.alloc(size);
+    let slice = env.mem.bytes_at_mut(alloc.cast(), size);
+    slice.copy_from_slice(&bytes);
+
+    // TODO: don't leak here...
+    CGDataProviderCreateWithData(
+        env,
+        MutVoidPtr::null(),
+        alloc.cast_const().cast(),
+        size.try_into().unwrap(),
+        CGDataProviderReleaseDataCallback::from_addr_and_thumb_flag(0, false),
+    )
+}
+
 #[allow(rustdoc::broken_intra_doc_links)] // https://github.com/rust-lang/rust/issues/83049
 /// This is for use by [super::cg_image::CGImageGetDataProvider].
 pub(super) fn from_cg_image(env: &mut Environment, cg_image: CGImageRef) -> CGDataProviderRef {
@@ -168,4 +199,5 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CGDataProviderRelease(_)),
     export_c_func!(CGDataProviderCreateWithData(_, _, _, _)),
     export_c_func!(CGDataProviderCopyData(_)),
+    export_c_func!(CGDataProviderCreateWithFilename(_)),
 ];

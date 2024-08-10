@@ -10,6 +10,7 @@
 
 pub mod ui_button;
 pub mod ui_text_field;
+pub mod ui_webview;
 
 use crate::frameworks::core_graphics::CGPoint;
 use crate::frameworks::foundation::NSUInteger;
