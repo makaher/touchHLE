@@ -8,6 +8,7 @@
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::frameworks::carbon_core::OSStatus;
 use crate::frameworks::core_audio_types::fourcc;
+use crate::frameworks::core_foundation::cf_url::CFURLRef;
 use crate::mem::{MutPtr, MutVoidPtr};
 use crate::Environment;
 
@@ -41,7 +42,22 @@ fn AudioServicesPlaySystemSound(_env: &mut Environment, in_system_sound_id: Syst
     // TODO: implement other system sounds
 }
 
+fn AudioServicesCreateSystemSoundID(_env: &mut Environment, _in_file_url: CFURLRef, out_system_sound_id: MutPtr<SystemSoundID>) -> OSStatus {
+    log_dbg!("TODO: AudioServicesCreateSystemSoundID");
+    if !out_system_sound_id.is_null() {
+        _env.mem.write(out_system_sound_id, kSystemSoundID_Vibrate);
+    }
+    0 as OSStatus
+}
+
+fn AudioServicesDisposeSystemSoundID(_env: &mut Environment, _in_system_sound_id: SystemSoundID) {
+    log_dbg!("TODO: AudioServicesDisposeSystemSoundID");
+    // TODO: just leak here for now
+}
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(AudioServicesGetProperty(_, _, _, _, _)),
     export_c_func!(AudioServicesPlaySystemSound(_)),
+    export_c_func!(AudioServicesCreateSystemSoundID(_, _)),
+    export_c_func!(AudioServicesDisposeSystemSoundID(_)),
 ];
